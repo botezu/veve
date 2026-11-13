@@ -277,19 +277,28 @@ def main(argv):
         print(f"{fid}: +{added} nových cen, poslední {last}")
         return
 
-    failures = 0
+    failures, missing = [], []
     if "--no-download" not in argv:
         for fund in funds:
+            if not fund.get("productid"):
+                missing.append(fund["id"])
+                print(f"::warning::{fund['id']}: ve funds.json chybí productid – ceny se nestahují, používám uložené")
+                continue
             try:
                 added, last = merge_and_save(fund["id"], download(fund))
                 print(f"{fund['id']}: +{added} nových cen, poslední {last}")
             except Exception as e:  # stažení jednoho fondu nesmí shodit ostatní
-                failures += 1
-                print(f"::warning::{fund['id']}: stažení selhalo ({e}); ponechávám uložené ceny")
+                failures.append(fund["id"])
+                print(f"::error::{fund['id']}: stažení selhalo ({e}); ponechávám uložené ceny. "
+                      f"Zkontroluj productid {fund['productid']} ve funds.json.")
     build(funds)
-    if failures == len(funds):
-        raise SystemExit("Nepodařilo se stáhnout ceny žádného fondu.")
 
+    # Výsledek pro GitHub Actions: stránka se nasadí vždy, chyba stažení se ohlásí až na konci běhu.
+    import os
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a", encoding="utf-8") as fh:
+            fh.write(f"failed={len(failures)}\nmissing={len(missing)}\n")
 
 if __name__ == "__main__":
     main(sys.argv[1:])
