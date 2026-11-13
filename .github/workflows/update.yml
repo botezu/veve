@@ -1,0 +1,70 @@
+name: Aktualizace cen a nasazení webu
+
+on:
+  schedule:
+    # každý den v 6:23 UTC (7:23 v zimě / 8:23 v létě pražského času)
+    - cron: "23 6 * * *"
+  workflow_dispatch: # ruční spuštění tlačítkem "Run workflow"
+  push:
+    branches: [main]
+    paths:
+      - "data/nakupy.csv"
+      - "funds.json"
+      - "index.html"
+      - "scripts/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalace závislostí
+        run: pip install -r requirements.txt
+
+      - name: Stažení cen a výpočet portfolia
+        run: python scripts/update.py
+
+      - name: Uložení změn do repozitáře
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "Žádné nové ceny."
+          else
+            git commit -m "Aktualizace cen $(date -u +%Y-%m-%d)"
+            git push
+          fi
+
+      - name: Příprava webu
+        run: |
+          mkdir -p _site/data
+          cp index.html _site/
+          cp data/portfolio.json _site/data/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
