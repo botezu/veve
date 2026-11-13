@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Investice – vývoj hodnoty</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f4f3ef;
+    --surface-1: #fcfcfb;
+    --border: #e2e0d9;
+    --grid: #ebe9e3;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7a7974;
+    --series-value: #2a78d6;
+    --series-value-fill: rgba(42, 120, 214, 0.10);
+    --series-invested: #7a7974;
+    --good: #0f7b3f;
+    --bad: #c4302b;
+    --accent-bg: #e8f0fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #121211;
+      --surface-1: #1a1a19;
+      --border: #2e2e2c;
+      --grid: #262624;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #918f88;
+      --series-value: #3987e5;
+      --series-value-fill: rgba(57, 135, 229, 0.16);
+      --series-invested: #a3a199;
+      --good: #4cc27e;
+      --bad: #ef6b66;
+      --accent-bg: #1d2b3d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: 28px 20px 48px; }
+  header h1 { font-size: 24px; margin: 0 0 4px; font-weight: 650; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 22px 0 18px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+  .tile .num { font-size: 26px; font-weight: 650; margin-top: 4px; letter-spacing: -0.01em; }
+  .tile .sub { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+  .pos { color: var(--good); } .neg { color: var(--bad); }
+
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .tabs button {
+    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+    background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
+  }
+  .tabs button[aria-pressed="true"] { background: var(--accent-bg); border-color: var(--series-value); font-weight: 600; }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 10px; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .card-head h2 { font-size: 16px; margin: 0; font-weight: 600; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--text-secondary); }
+  .legend span::before { content: ""; display: inline-block; width: 16px; height: 0; vertical-align: middle; margin-right: 6px; border-top: 2px solid; }
+  .legend .lv::before { border-color: var(--series-value); }
+  .legend .li::before { border-color: var(--series-invested); border-top-style: dashed; }
+  .legend .lp::before { display: none; }
+  .zero { stroke: var(--text-muted); stroke-width: 1; }
+  .line-pl { fill: none; stroke: var(--text-primary); stroke-width: 2; stroke-linejoin: round; }
+  .area-pos { fill: var(--good); opacity: .16; }
+  .area-neg { fill: var(--bad); opacity: .16; }
+  .dot-pl { fill: var(--text-primary); stroke: var(--surface-1); stroke-width: 2; }
+
+  .chart-wrap { position: relative; margin-top: 8px; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .axis text { fill: var(--text-muted); font-size: 11px; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .line-value { fill: none; stroke: var(--series-value); stroke-width: 2; stroke-linejoin: round; }
+  .area-value { fill: var(--series-value-fill); }
+  .line-invested { fill: none; stroke: var(--series-invested); stroke-width: 2; stroke-dasharray: 5 4; }
+  .end-label { font-size: 12px; fill: var(--text-secondary); }
+  .buy-marker { fill: var(--surface-1); stroke: var(--series-invested); stroke-width: 2; }
+  .crosshair { stroke: var(--text-muted); stroke-width: 1; }
+  .dot-value { fill: var(--series-value); stroke: var(--surface-1); stroke-width: 2; }
+  .dot-invested { fill: var(--series-invested); stroke: var(--surface-1); stroke-width: 2; }
+  .tooltip {
+    position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    min-width: 190px; display: none; z-index: 2;
+  }
+  .tooltip .d { color: var(--text-secondary); margin-bottom: 4px; }
+  .tooltip .row { display: flex; justify-content: space-between; gap: 14px; }
+  .tooltip .sw { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 6px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 18px; }
+  .table-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 4px 16px 8px; margin-top: 16px; overflow-x: auto; }
+  th, td { text-align: right; padding: 9px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { font-weight: 600; color: var(--text-secondary); font-size: 12px; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover, tbody tr.sel { background: var(--accent-bg); }
+  tfoot td { font-weight: 650; border-bottom: none; }
+  .muted { color: var(--text-muted); font-size: 12px; }
+  footer { margin-top: 18px; font-size: 12px; color: var(--text-muted); }
+  .error { background: var(--surface-1); border: 1px solid var(--bad); border-radius: 10px; padding: 16px; margin-top: 20px; }
+  @media (max-width: 640px) {
+    .tiles { grid-template-columns: 1fr; }
+    .tile .num { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Vývoj investic</h1>
+    <p id="updated">Načítám data…</p>
+  </header>
+
+  <section class="tiles" aria-live="polite">
+    <div class="tile"><div class="label">Aktuální hodnota</div><div class="num" id="t-value">–</div><div class="sub" id="t-value-sub">&nbsp;</div></div>
+    <div class="tile"><div class="label">Vloženo</div><div class="num" id="t-invested">–</div><div class="sub" id="t-invested-sub">&nbsp;</div></div>
+    <div class="tile"><div class="label">Zisk / ztráta</div><div class="num" id="t-pl">–</div><div class="sub" id="t-pl-sub">&nbsp;</div></div>
+  </section>
+
+  <nav class="tabs" id="tabs" aria-label="Výběr fondu"></nav>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 id="chart-title">Celé portfolio</h2>
+      <div class="legend"><span class="lv">Hodnota</span><span class="li">Vloženo</span></div>
+    </div>
+    <div class="chart-wrap" id="chart-wrap">
+      <svg id="chart" role="img" aria-labelledby="chart-title"></svg>
+      <div class="tooltip" id="tooltip"></div>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <div class="card-head">
+      <h2 id="pl-title">Zisk / ztráta v Kč</h2>
+      <div class="legend"><span class="lp">Nad nulou zisk, pod nulou ztráta</span></div>
+    </div>
+    <div class="chart-wrap" id="pl-wrap">
+      <svg id="pl-chart" role="img" aria-labelledby="pl-title"></svg>
+      <div class="tooltip" id="pl-tooltip"></div>
+    </div>
+  </section>
+
+  <section class="table-card">
+    <table>
+      <thead>
+        <tr><th>Fond</th><th>Kusů</th><th>Nákupní cena</th><th>Vloženo</th><th>Aktuální cena</th><th>Hodnota</th><th>Zisk / ztráta</th></tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+      <tfoot id="tfoot"></tfoot>
+    </table>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script>
+(() => {
+  const fmtCZK = new Intl.NumberFormat("cs-CZ", { style: "currency", currency: "CZK", maximumFractionDigits: 0 });
+  const fmtPrice = new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 4 });
+  const fmtUnits = new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 3 });
+  const fmtPct = new Intl.NumberFormat("cs-CZ", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1, signDisplay: "exceptZero" });
+  const fmtSigned = v => (v > 0 ? "+" : "") + fmtCZK.format(v);
+  const fmtDate = s => { const [y, m, d] = s.split("-"); return `${+d}. ${+m}. ${y}`; };
+  const fmtShortMoney = v => {
+    const a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toLocaleString("cs-CZ", { maximumFractionDigits: 2 }) + " mil.";
+    if (a >= 1e3) return (v / 1e3).toLocaleString("cs-CZ", { maximumFractionDigits: 1 }) + " tis.";
+    return v.toLocaleString("cs-CZ");
+  };
+  const cls = v => v > 0 ? "pos" : v < 0 ? "neg" : "";
+  const $ = id => document.getElementById(id);
+
+  let DATA = null;
+  let selected = "total";
+
+  fetch("data/portfolio.json", { cache: "no-cache" })
+    .then(r => { if (!r.ok) throw new Error(r.status + " " + r.statusText); return r.json(); })
+    .then(d => { DATA = d; init(); })
+    .catch(e => {
+      $("updated").textContent = "";
+      document.querySelector("main").insertAdjacentHTML("beforeend",
+        `<div class="error">Nepodařilo se načíst data (data/portfolio.json): ${e.message}</div>`);
+    });
+
+  function init() {
+    $("updated").textContent = `Ceny k ${fmtDate(DATA.last_price_date)} · aktualizováno ${new Date(DATA.generated_at).toLocaleString("cs-CZ")}`;
+    const tabs = $("tabs");
+    const items = [{ id: "total", name: "Celkem" }, ...DATA.funds.map(f => ({ id: f.id, name: f.name }))];
+    for (const it of items) {
+      const b = document.createElement("button");
+      b.textContent = it.name; b.dataset.id = it.id;
+      b.addEventListener("click", () => select(it.id));
+      tabs.appendChild(b);
+    }
+    renderTable();
+    const hash = location.hash.slice(1);
+    select(items.some(i => i.id === hash) ? hash : "total");
+    let t; window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => drawChart(), 120); });
+    $("footer").innerHTML = "Hodnota = počet kusů × poslední známá cena podílového listu. " +
+      "Vložená částka je u nákupů bez zadané částky odhadnuta jako počet kusů × cena ke dni nákupu (bez poplatků). " +
+      "Zdroj cen: conseq.cz.";
+  }
+
+  function current() {
+    if (selected === "total") return { name: "Celé portfolio", series: DATA.total.series, value: DATA.total.value, invested: DATA.total.invested, purchases: DATA.funds.flatMap(f => f.purchases) };
+    return DATA.funds.find(f => f.id === selected);
+  }
+
+  function select(id) {
+    selected = id;
+    history.replaceState(null, "", id === "total" ? location.pathname : "#" + id);
+    for (const b of $("tabs").children) b.setAttribute("aria-pressed", b.dataset.id === id);
+    for (const tr of $("tbody").children) tr.classList.toggle("sel", tr.dataset.id === id);
+    const c = current();
+    $("chart-title").textContent = c.name;
+    const pl = c.value - c.invested;
+    $("t-value").textContent = fmtCZK.format(c.value);
+    $("t-value-sub").textContent = selected === "total" ? `${DATA.funds.length} fondy` : `${fmtUnits.format(c.units)} ks × ${fmtPrice.format(c.last_price)} Kč (${fmtDate(c.last_price_date)})`;
+    $("t-invested").textContent = fmtCZK.format(c.invested);
+    const est = c.purchases.some(p => p.amount_source === "odhad");
+    $("t-invested-sub").textContent = `${c.purchases.length} ${c.purchases.length === 1 ? "nákup" : c.purchases.length < 5 ? "nákupy" : "nákupů"}${est ? " · částka odhadnuta z ceny" : ""}`;
+    $("t-pl").textContent = fmtSigned(pl);
+    $("t-pl").className = "num " + cls(pl);
+    $("t-pl-sub").innerHTML = `<span class="${cls(pl)}">${fmtPct.format(c.invested ? pl / c.invested : 0)}</span> od nákupu`;
+    drawChart();
+  }
+
+  function renderTable() {
+    const rows = DATA.funds.map(f => {
+      const pl = f.value - f.invested;
+      const p0 = f.purchases[0];
+      const buy = f.purchases.length === 1
+        ? `${fmtPrice.format(p0.price)} Kč<div class="muted">${fmtDate(p0.date)}</div>`
+        : `${f.purchases.length} nákupy<div class="muted">od ${fmtDate(p0.date)}</div>`;
+      return `<tr data-id="${f.id}">
+        <td>${f.name}<div class="muted">${f.isin}</div></td>
+        <td>${fmtUnits.format(f.units)}</td>
+        <td>${buy}</td>
+        <td>${fmtCZK.format(f.invested)}</td>
+        <td>${fmtPrice.format(f.last_price)} Kč<div class="muted">${fmtDate(f.last_price_date)}</div></td>
+        <td>${fmtCZK.format(f.value)}</td>
+        <td class="${cls(pl)}">${fmtSigned(pl)}<div class="muted">${fmtPct.format(f.invested ? pl / f.invested : 0)}</div></td>
+      </tr>`;
+    }).join("");
+    $("tbody").innerHTML = rows;
+    for (const tr of $("tbody").children) tr.addEventListener("click", () => {
+      select(tr.dataset.id === selected ? "total" : tr.dataset.id);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    const t = DATA.total, pl = t.value - t.invested;
+    $("tfoot").innerHTML = `<tr><td>Celkem</td><td></td><td></td><td>${fmtCZK.format(t.invested)}</td><td></td><td>${fmtCZK.format(t.value)}</td>
+      <td class="${cls(pl)}">${fmtSigned(pl)}<div class="muted">${fmtPct.format(pl / t.invested)}</div></td></tr>`;
+  }
+
+  // ---------- graf ----------
+  function niceTicks(min, max, count) {
+    const span = max - min || Math.abs(max) || 1;
+    const raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= count) || 10 * mag;
+    const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+    const ticks = []; for (let v = lo; v <= hi + step / 2; v += step) ticks.push(+v.toFixed(10));
+    return ticks;
+  }
+  const MONTHS = ["led", "úno", "bře", "dub", "kvě", "čvn", "čvc", "srp", "zář", "říj", "lis", "pro"];
+
+  function drawChart() {
+    const c = current();
+    const s = c.series.filter(p => p[2] > 0);
+    const buyDates = new Set(c.purchases.map(p => p.date));
+    lineChart({
+      wrap: $("chart-wrap"), svg: $("chart"), tip: $("tooltip"), rows: s, aspect: 0.48, minH: 260,
+      values: p => [p[1], p[2]],
+      draw: (x, y, t, lo) => {
+        const valuePts = s.map((p, i) => `${x(t[i]).toFixed(1)},${y(p[1]).toFixed(1)}`);
+        let inv = `M${x(t[0]).toFixed(1)},${y(s[0][2]).toFixed(1)}`;
+        for (let i = 1; i < s.length; i++) {
+          inv += ` H${x(t[i]).toFixed(1)}`;
+          if (s[i][2] !== s[i - 1][2]) inv += ` V${y(s[i][2]).toFixed(1)}`;
+        }
+        let g = `<path class="area-value" d="M${valuePts.join(" L")} L${x(t[t.length - 1])},${y(lo)} L${x(t[0])},${y(lo)} Z"/>`;
+        g += `<path class="line-invested" d="${inv}"/>`;
+        g += `<path class="line-value" d="M${valuePts.join(" L")}"/>`;
+        s.forEach((p, i) => { if (buyDates.has(p[0])) g += `<circle class="buy-marker" cx="${x(t[i])}" cy="${y(p[2])}" r="4"><title>Nákup ${fmtDate(p[0])}</title></circle>`; });
+        return g;
+      },
+      endLabels: p => [["Hodnota", p[1]], ["Vloženo", p[2]]],
+      dots: [["dot-invested", p => p[2]], ["dot-value", p => p[1]]],
+      tooltip: p => {
+        const pl = p[1] - p[2];
+        return `<div class="d">${fmtDate(p[0])}${buyDates.has(p[0]) ? " · nákup" : ""}</div>
+          <div class="row"><span><span class="sw" style="background:var(--series-value)"></span>Hodnota</span><b>${fmtCZK.format(p[1])}</b></div>
+          <div class="row"><span><span class="sw" style="background:var(--series-invested)"></span>Vloženo</span><span>${fmtCZK.format(p[2])}</span></div>
+          <div class="row"><span>Zisk / ztráta</span><span class="${cls(pl)}">${fmtSigned(pl)} (${fmtPct.format(p[2] ? pl / p[2] : 0)})</span></div>`;
+      },
+    });
+
+    const pls = s.map(p => [p[0], p[1] - p[2], p[2]]);
+    lineChart({
+      wrap: $("pl-wrap"), svg: $("pl-chart"), tip: $("pl-tooltip"), rows: pls, aspect: 0.26, minH: 170, includeZero: true,
+      values: p => [p[1]],
+      draw: (x, y, t) => {
+        const pts = pls.map((p, i) => `${x(t[i]).toFixed(1)},${y(p[1]).toFixed(1)}`);
+        const x0 = x(t[0]), x1 = x(t[t.length - 1]), y0 = y(0);
+        const area = `M${x0},${y0} L${pts.join(" L")} L${x1},${y0} Z`;
+        const W = x1 + 200;
+        let g = `<defs><clipPath id="cp-pos"><rect x="0" y="-1000" width="${W}" height="${y0 + 1000}"/></clipPath>
+                       <clipPath id="cp-neg"><rect x="0" y="${y0}" width="${W}" height="2000"/></clipPath></defs>`;
+        g += `<path class="area-pos" clip-path="url(#cp-pos)" d="${area}"/><path class="area-neg" clip-path="url(#cp-neg)" d="${area}"/>`;
+        g += `<line class="zero" x1="${x0}" x2="${x1}" y1="${y0}" y2="${y0}"/>`;
+        g += `<path class="line-pl" d="M${pts.join(" L")}"/>`;
+        return g;
+      },
+      endLabels: p => [[fmtSigned(p[1]).replace(/\s?Kč/, ""), p[1]]],
+      dots: [["dot-pl", p => p[1]]],
+      tooltip: p => `<div class="d">${fmtDate(p[0])}</div>
+          <div class="row"><span>Zisk / ztráta</span><b class="${cls(p[1])}">${fmtSigned(p[1])}</b></div>
+          <div class="row"><span>Výnos</span><span class="${cls(p[1])}">${fmtPct.format(p[2] ? p[1] / p[2] : 0)}</span></div>`,
+    });
+  }
+
+  function lineChart(o) {
+    const { wrap, svg, tip, rows: s } = o;
+    const W = wrap.clientWidth, H = Math.max(o.minH, Math.min(400, W * o.aspect));
+    const m = { t: 14, r: W < 520 ? 12 : 92, b: 28, l: 64 };
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("width", W); svg.setAttribute("height", H);
+    tip.style.display = "none";
+    if (!s.length) { svg.innerHTML = ""; return; }
+
+    const t = s.map(p => Date.parse(p[0]));
+    const vals = s.flatMap(o.values);
+    if (o.includeZero) vals.push(0);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.02 || 1;
+    const ticks = niceTicks(lo - pad, hi + pad, o.minH < 200 ? 4 : 5);
+    lo = ticks[0]; hi = ticks[ticks.length - 1];
+    const t0 = t[0], t1 = t[t.length - 1] === t0 ? t0 + 864e5 : t[t.length - 1];
+    const x = v => m.l + (v - t0) / (t1 - t0) * (W - m.l - m.r);
+    const y = v => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
+
+    let g = `<g class="axis">`;
+    for (const v of ticks) g += `<line class="gridline" x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${fmtShortMoney(v)}</text>`;
+    const d0 = new Date(t0), months = [];
+    for (let d = new Date(d0.getFullYear(), d0.getMonth() + 1, 1); d.getTime() <= t1; d.setMonth(d.getMonth() + 1)) months.push(new Date(d));
+    const every = Math.ceil(months.length / Math.max(2, Math.floor((W - m.l - m.r) / 70)));
+    months.forEach((d, i) => {
+      if (i % every) return;
+      const label = d.getMonth() === 0 || i === 0 ? `${MONTHS[d.getMonth()]} ${d.getFullYear()}` : MONTHS[d.getMonth()];
+      g += `<text x="${x(d.getTime())}" y="${H - 8}" text-anchor="middle">${label}</text>`;
+    });
+    g += `</g>`;
+    g += o.draw(x, y, t, lo);
+
+    if (m.r > 40) {
+      const labels = o.endLabels(s[s.length - 1]).map(([txt, v]) => ({ txt, y: y(v) }));
+      if (labels.length === 2 && Math.abs(labels[0].y - labels[1].y) < 16) {
+        const mid = (labels[0].y + labels[1].y) / 2, up = labels[0].y <= labels[1].y ? -1 : 1;
+        labels[0].y = mid + up * 8; labels[1].y = mid - up * 8;
+      }
+      for (const l of labels) g += `<text class="end-label" x="${W - m.r + 8}" y="${l.y + 4}">${l.txt}</text>`;
+    }
+    g += `<g class="hover" style="display:none"><line class="crosshair" y1="${m.t}" y2="${H - m.b}"/>` +
+         o.dots.map(([c]) => `<circle class="${c}" r="4.5"/>`).join("") + `</g>`;
+    g += `<rect class="hit" x="${m.l}" y="0" width="${W - m.l - m.r}" height="${H}" fill="transparent"/>`;
+    svg.innerHTML = g;
+
+    const hover = svg.querySelector(".hover"), hit = svg.querySelector(".hit");
+    const cross = hover.querySelector("line"), dots = hover.querySelectorAll("circle");
+    const move = ev => {
+      const r = svg.getBoundingClientRect();
+      const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+      const tv = t0 + (px - m.l) / (W - m.l - m.r) * (t1 - t0);
+      let i = 0, best = Infinity;
+      t.forEach((tt, k) => { const dd = Math.abs(tt - tv); if (dd < best) { best = dd; i = k; } });
+      const p = s[i], xi = x(t[i]);
+      hover.style.display = "";
+      cross.setAttribute("x1", xi); cross.setAttribute("x2", xi);
+      o.dots.forEach(([, f], k) => { dots[k].setAttribute("cx", xi); dots[k].setAttribute("cy", y(f(p))); });
+      tip.innerHTML = o.tooltip(p);
+      tip.style.display = "block";
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(Math.max(0, xi + 14 + tw > W ? xi - tw - 14 : xi + 14), W - tw) + "px";
+      const ys = o.dots.map(([, f]) => y(f(p)));
+      tip.style.top = Math.max(0, Math.min(H - th, Math.min(...ys) - 20)) + "px";
+    };
+    const leave = () => { hover.style.display = "none"; tip.style.display = "none"; };
+    hit.addEventListener("mousemove", move);
+    hit.addEventListener("touchstart", move, { passive: true });
+    hit.addEventListener("touchmove", move, { passive: true });
+    hit.addEventListener("mouseleave", leave);
+  }
+})();
+</script>
+</body>
+</html>
