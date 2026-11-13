@@ -3,7 +3,7 @@
     "id": "amundi-global-equity",
     "name": "Amundi Funds Global Equity A hgd (CZK)",
     "isin": "LU1894680591",
-    "productid": null,
+    "productid": 8816,
     "aliases": [
       "Amundi Funds Global Equity A hgd (CZK)"
     ]
@@ -12,7 +12,7 @@
     "id": "invesco-ai",
     "name": "Invesco Artificial Intelligence Fund hgd (CZK)",
     "isin": "LU2484078758",
-    "productid": null,
+    "productid": 10875,
     "aliases": [
       "Invesco Metaverse and AI Fund hgd (CZK)",
       "Invesco Artificial Intelligence Fund hgd (CZK)"
@@ -22,7 +22,7 @@
     "id": "conseq-nova-evropa",
     "name": "Conseq Invest Akcie Nové Evropy A",
     "isin": "CZ0008477049",
-    "productid": null,
+    "productid": 10079,
     "aliases": [
       "Conseq Invest Akcie Nové Evropy A"
     ]
@@ -31,7 +31,7 @@
     "id": "conseq-realitni",
     "name": "Conseq realitní (CZK)",
     "isin": "CZ0008472859",
-    "productid": null,
+    "productid": 4760,
     "aliases": [
       "Conseq realitní (CZK)"
     ]
