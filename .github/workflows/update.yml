@@ -15,8 +15,8 @@ on:
       - ".github/workflows/**"
 
 permissions:
-  contents: write
-  pages: write
+  contents: write   # uložení nových cen do repozitáře
+  pages: write      # nasazení na GitHub Pages
   id-token: write
 
 concurrency:
@@ -40,6 +40,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Stažení cen a výpočet portfolia
+        id: update
         run: python scripts/update.py
 
       - name: Uložení změn do repozitáře
@@ -68,3 +69,9 @@ jobs:
 
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Kontrola stažení cen
+        if: steps.update.outputs.failed != '0'
+        run: |
+          echo "::error::Ceny ${{ steps.update.outputs.failed }} fondů se nepodařilo stáhnout. Web běží s posledními uloženými cenami – viz varování v kroku 'Stažení cen a výpočet portfolia'."
+          exit 1
